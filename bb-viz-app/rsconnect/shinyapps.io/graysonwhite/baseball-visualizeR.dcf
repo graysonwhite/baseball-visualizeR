@@ -1,0 +1,12 @@
+name: baseball-visualizeR
+title: baseball-visualizeR
+username:
+account: graysonwhite
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2287854
+bundleId: 3235143
+url: https://graysonwhite.shinyapps.io/baseball-visualizeR/
+when: 1591419553.03842
+asMultiple: FALSE
+asStatic: FALSE
