@@ -18,126 +18,86 @@ library(dplyr)
 library(shinycssloaders)
 library(DT)
 
-# Load all static dataframes here
-batters <- 
-  readRDS("batters.rds")
-pitchers <- 
-  readRDS("pitchers.rds")
-player_stats <- 
-  readRDS("metrics.rds")
-metrics <- 
-  readRDS("metrics.rds")
-trends <-
-  readRDS("trends.rds")
+# Load all static dataframes here --------------------------------------------------
+batters <- readRDS("batters.rds")
+pitchers <- readRDS("pitchers.rds")
+player_stats <- readRDS("metrics.rds")
+metrics <- readRDS("metrics.rds")
+trends <-readRDS("trends.rds")
 
-# Set font properties
+# Set font properties --------------------------------------------------------------
 font <- list(family = "Helvetica Neue",
              size = 14,
              color = 'gray0')
 
-# Load scraping function & "not in" Function
+# Load scraping function & "not in" Function ---------------------------------------
 `%notin%` <- Negate(`%in%`)
 
-
-
-
-
-scrape_bb_viz <-
-  function(start_date,
-           end_date,
-           playerid,
-           player_type) {
-    first <- as.numeric(substring(start_date, 1, 4))
-    last <- as.numeric(substring(end_date, 1, 4))
-    if (first == last) {
-      scrape_statcast_savant(
-        start_date = start_date,
-        end_date = end_date,
-        playerid = playerid,
-        player_type = player_type
-      )
-    }
-    else {
-      dfs <- list(rep(NA, last - first + 1))
-      for (i in 0:(last - first)) {
-        if (i == 0) {
-          dfs[[i + 1]] <- scrape_statcast_savant(
-            start_date = start_date,
+scrape_bb_viz <- function(start_date, end_date, playerid, player_type) {
+  first <- as.numeric(substring(start_date, 1, 4))
+  last <- as.numeric(substring(end_date, 1, 4))
+  if (first == last) {
+    scrape_statcast_savant(
+      start_date = start_date,
+      end_date = end_date,
+      playerid = playerid,
+      player_type = player_type
+    )
+  }
+  else {
+    dfs <- list(rep(NA, last - first + 1))
+    for (i in 0:(last - first)) {
+      if (i == 0) {
+        dfs[[i + 1]] <- scrape_statcast_savant(
+          start_date = start_date,
+          end_date = glue("{first + i}-12-31"),
+          playerid = playerid,
+          player_type = player_type
+        )
+      }
+      else if (i != last - first) {
+        dfs[[i + 1]] <-
+          scrape_statcast_savant(
+            start_date = glue("{first + i}-01-01"),
             end_date = glue("{first + i}-12-31"),
             playerid = playerid,
             player_type = player_type
           )
-        }
-        else if (i != last - first) {
-          dfs[[i + 1]] <-
-            scrape_statcast_savant(
-              start_date = glue("{first + i}-01-01"),
-              end_date = glue("{first + i}-12-31"),
-              playerid = playerid,
-              player_type = player_type
-            )
-        }
-        else {
-          dfs[[i + 1]] <-
-            scrape_statcast_savant(
-              start_date = glue("{first + i}-01-01"),
-              end_date = end_date,
-              playerid = playerid,
-              player_type = player_type
-            )
-        }
       }
-      return(rbind.fill(dfs))
+      else {
+        dfs[[i + 1]] <-
+          scrape_statcast_savant(
+            start_date = glue("{first + i}-01-01"),
+            end_date = end_date,
+            playerid = playerid,
+            player_type = player_type
+          )
+      }
     }
+    return(rbind.fill(dfs))
   }
+}
 
+# More set up ----------------------------------------------------------------------
+convert_to_percent <- c("BA", "SLG", "OBP", "OPS", "ISO", "wOBA", "xBA", "xSLG",
+                        "xwOBA", "xISO", "Sweet Spot %", "Barrel %")
 
-# Define working directory
-convert_to_percent <-
-  c(
-    "BA",
-    "SLG",
-    "OBP",
-    "OPS",
-    "ISO",
-    "wOBA",
-    "xBA",
-    "xSLG",
-    "xwOBA",
-    "xISO",
-    "Sweet Spot %",
-    "Barrel %"
-  )
-player_stats <-
-  readRDS("metrics.rds")
+player_stats <- readRDS("metrics.rds")
+
 player_stats <- player_stats %>%
   mutate(name = paste(Name, Year, sep = ' - '))  %>%
-  mutate_at(convert_to_percent, function(d) {
-    d * 100
-  })
+  mutate_at(convert_to_percent, 
+            function(d) {d * 100}
+            )
 
 
-#predefined variables
-relevant_stats <-
-  c("OBP", "xBA" , "xwOBA", "K %", "BB %", "Sweet Spot %")
-stat_choices <-
-  c(
-    "BA",
-    "SLG",
-    "OBP",
-    "OPS",
-    "ISO",
-    "wOBA",
-    "xBA",
-    "xSLG",
-    "xwOBA",
-    "xISO",
-    "K %",
-    "BB %",
-    "Launch Angle",
-    "Exit Velocity"
-  )
+# Predefine variables --------------------------------------------------------------
+relevant_stats <- c("OBP", "xBA" , "xwOBA", "K %", "BB %", "Sweet Spot %")
+stat_choices <- c("BA", "SLG", "OBP", "OPS", "ISO", "wOBA", "xBA", "xSLG", "xwOBA",
+                  "xISO", "K %", "BB %", "Launch Angle", "Exit Velocity")
+
 table_stats <- c("Name", "Year")
+
 add_web <- function(fig, r, theta, name) {
   fig %>% add_trace(
     r = r,
@@ -149,7 +109,8 @@ add_web <- function(fig, r, theta, name) {
 }
 n <- 9
 
-# User interface
+# Shiny app begins -----------------------------------------------------------------
+# User interface -------------------------------------------------------------------
 ui <- navbarPage(
   theme = shinytheme("flatly"),
   title = "Baseball VisualizeR: An Application for Baseball Visualizations",
@@ -225,11 +186,14 @@ ui <- navbarPage(
       submitButton("Generate Plot")
     ),
     mainPanel(
-      plotlyOutput(outputId = "spray_chart") %>% withSpinner(color = "#0dc5c1"),
+      plotlyOutput(outputId = "spray_chart") %>%
+        withSpinner(color = "#0dc5c1"),
       dataTableOutput(outputId = "summary_table")
     ),
     p(
-      "Note: To generate more accurate summary data, please try to select a date range in which the selected player had at least one batted ball event in each given season",
+      "Note: To generate more accurate summary data, please try to select a date
+      range in which the selected player had at least one batted ball event in each
+      given season",
       style = "font-size:12px"
     )
   ),
@@ -256,7 +220,8 @@ ui <- navbarPage(
       submitButton("Generate Data")
     ),
     mainPanel(
-      plotOutput(outputId = "metrics_graph") %>% withSpinner(color = "#0dc5c1"),
+      plotOutput(outputId = "metrics_graph") %>%
+        withSpinner(color = "#0dc5c1"),
       dataTableOutput(outputId = "metrics_table")
     )
   ),
@@ -303,7 +268,8 @@ ui <- navbarPage(
       submitButton("Generate Data")
     ),
     mainPanel(
-      dataTableOutput(outputId = "leader_table") %>% withSpinner(color = "#0dc5c1")
+      dataTableOutput(outputId = "leader_table") %>%
+        withSpinner(color = "#0dc5c1")
     )
   ),
   tabPanel(
@@ -387,7 +353,9 @@ ui <- navbarPage(
       ) %>% withSpinner(color = "#0dc5c1"),
       dataTableOutput(outputId = "pitch_table"),
       p(
-        "Note: To generate more accurate summary data, please try to select a date range in which the selected player had at least one pitch in each given season",
+        "Note: To generate more accurate summary data, please try to select a date
+        range in which the selected player had at least one pitch in each given
+        season",
         style = "font-size:12px"
       )
     )
@@ -397,11 +365,11 @@ ui <- navbarPage(
     tags$head(tags$style(
       HTML(".shiny-output-error-validation{color: red;}")
     )),
-    # pageWithSidebar(
-    # headerPanel('Apply filters'),
     sidebarPanel(
       width = 4,
-      selectInput('player', 'Select Player:', player_stats$name, selected = "Juan Soto - 2019"),
+      selectInput('player', 'Select Player:',
+                  player_stats$name,
+                  selected = "Juan Soto - 2019"),
       p(
         "Note: Only includes qualified players for a given season (min. 475 PA)"
       ),
@@ -422,21 +390,21 @@ ui <- navbarPage(
     mainPanel(
       column(
         8,
-        plotlyOutput("plot1", width = 600, height = 500) %>% withSpinner(color =
-                                                                           "#0dc5c1"),
+        plotlyOutput("plot1", width = 600, height = 500) %>%
+          withSpinner(color = "#0dc5c1"),
         p(
-          "Double click on a player's name in the legend to isolate layer. See table below for ordered comparisons.",
+          "Double click on a player's name in the legend to isolate layer. See table
+          below for ordered comparisons.",
           style = "font-size:16px"
         ),
         p(
-          "Note: For ease of comparison, all metrics have been converted to a percent measurement.",
+          "Note: For ease of comparison, all metrics have been converted to a
+          percent measurement.",
           style = "font-size:14px"
         )
-        
       ),
       dataTableOutput(outputId = "table1")
     )
-    # )
   ),
   tabPanel(
     "Data Trends",
@@ -475,7 +443,6 @@ ui <- navbarPage(
         sep = ""
       ),
       submitButton("Generate Data")
-      
     ),
     mainPanel(
       plotOutput(outputId = "trends_plot") %>% withSpinner(color = "#0dc5c1"),
@@ -484,7 +451,6 @@ ui <- navbarPage(
         "Note: All values presented as league-wide per-team averages.",
         style = "font-size:12px"
       )
-      
     )
   ),
   tabPanel(
@@ -510,22 +476,26 @@ ui <- navbarPage(
       style = "font-size:15px"
     ),
     p(
-      "xwOBA: Expected Weighted On-Base Average (Using Launch Angle and Exit Velocity)",
+      "xwOBA: Expected Weighted On-Base Average (Using Launch Angle and Exit
+      Velocity)",
       style = "font-size:15px"
     ),
     p("BAA: Batting Average Against", style = "font-size:15px"),
     p(
-      "xBAA: Expected Batting Average Against (Using Launch Angle and Exit Velocity)",
+      "xBAA: Expected Batting Average Against (Using Launch Angle and Exit
+      Velocity)",
       style = "font-size:15px"
     ),
     p("K %: Strikeout Rate", style = "font-size:15px"),
     p("BB %: Walk Rate", style = "font-size:15px"),
     p(
-      "Launch Angle: Vertical angle at which the ball leaves a player's bat after being struck",
+      "Launch Angle: Vertical angle at which the ball leaves a player's bat after
+      being struck",
       style = "font-size:15px"
     ),
     p(
-      "Exit Velocity: Speed at which the ball leaves a player's bat after being struck (MPH)",
+      "Exit Velocity: Speed at which the ball leaves a player's bat after being
+      struck (MPH)",
       style = "font-size:15px"
     ),
     p(
@@ -533,19 +503,24 @@ ui <- navbarPage(
       style = "font-size:15px"
     ),
     p(
-      "Hard Hit %: Proportion of batted balls with an exit velocity equal to or greater than 95 MPH",
+      "Hard Hit %: Proportion of batted balls with an exit velocity equal to or
+      greater than 95 MPH",
       style = "font-size:15px"
     ),
     p(
-      "Sweet Spot %: Proportion of batted balls with a launch angle between 8 and 32 degrees",
+      "Sweet Spot %: Proportion of batted balls with a launch angle between 8 and 32
+      degrees",
       style = "font-size:15px"
     ),
     p(
-      "Barrel %: Proportion of batted-ball events whose comparable hit types (in terms of exit velocity and launch angle) have led to a minimum .500 batting average and 1.500 slugging percentage",
+      "Barrel %: Proportion of batted-ball events whose comparable hit types (in
+      terms of exit velocity and launch angle) have led to a minimum .500 batting
+      average and 1.500 slugging percentage",
       style = "font-size:15px"
     ),
     p(
-      "Pitch Speed: Maximum velocity of a given pitch at any point from its release to the time it crosses home plate (MPH)",
+      "Pitch Speed: Maximum velocity of a given pitch at any point from its release
+      to the time it crosses home plate (MPH)",
       style = "font-size:15px"
     ),
     p(
@@ -565,19 +540,26 @@ ui <- navbarPage(
     "Developers & Sources",
     tags$p(
       "This app was created by",
-      tags$a("Riley Leonard", href = "https://www.linkedin.com/in/riley-leonard-9653791a6/", taget = "_blank"),
+      tags$a("Riley Leonard",
+             href = "https://www.linkedin.com/in/riley-leonard-9653791a6/",
+             taget = "_blank"),
       ",  ",
-      tags$a("Jonathan Li", href = "https://github.com/jonathanmli", taget = "_blank"),
+      tags$a("Jonathan Li",
+             href = "https://github.com/jonathanmli",
+             taget = "_blank"),
       ", and",
-      tags$a("Grayson White", href = "https://www.github.com/graysonwhite", taget = "_blank"),
+      tags$a("Grayson White",
+             href = "https://www.github.com/graysonwhite",
+             taget = "_blank"),
       "as a final project for Math 241: Data Science at Reed College in Spring 2020.
-                                 The goal of this app is to allow baseball fans to explore and visualize many
-                                 of the advanced metrics recorded for Major League Baseball."
+      The goal of this app is to allow baseball fans to explore and visualize many
+      of the advanced metrics recorded for Major League Baseball."
     ),
     tags$p(
       "The data used for this app was primarily pulled from",
-      tags$a("Statcast,", href = "https://baseballsavant.mlb.com/statcast_search", target =
-               "_blank"),
+      tags$a("Statcast,",
+             href = "https://baseballsavant.mlb.com/statcast_search",
+             target = "_blank"),
       "and tools were used from packages such as",
       tags$code("Lahman"),
       ", ",
@@ -588,12 +570,12 @@ ui <- navbarPage(
       tags$code("plotly"),
       ", and",
       tags$code("tidyverse"),
-      ".  The app was last updated in Spring 2020."
+      ".  The app was last updated in Summer 2020."
     )
   )
 )
 
-# Server function
+# Server ---------------------------------------------------------------------------
 server <- function(input, output, session) {
   updateSelectizeInput(session = session, inputId = 'pitcher')
   updateSelectizeInput(session = session, inputId = 'batter')
@@ -602,7 +584,7 @@ server <- function(input, output, session) {
                        selected = "Jose Abreu")
   updateSelectizeInput(session = session, inputId = 'payroll_names')
   
-  # Pitching output and data compiling
+  # Pitching output and data compiling ---------------------------------------------
   pitcher_filter <- reactive({
     req(input$pitcher)
     pitchers %>%
@@ -739,7 +721,8 @@ server <- function(input, output, session) {
         labs(
           color = "Pitch Type",
           title = glue(
-            "{input$pitcher} Pitches by Pitch Type <br><sub>{input$dates[1]} to {input$dates[2]}<sub>"
+            "{input$pitcher} Pitches by Pitch Type <br><sub>{input$dates[1]} to
+            {input$dates[2]}<sub>"
           )
         ) +
         xlim(-6, 6) +
@@ -925,7 +908,8 @@ server <- function(input, output, session) {
           estimated_ba_using_speedangle = as.numeric(estimated_ba_using_speedangle)
         ) %>%
         mutate(
-          estimated_ba_using_speedangle = na_if(estimated_ba_using_speedangle, "null")
+          estimated_ba_using_speedangle = na_if(estimated_ba_using_speedangle,
+                                                "null")
         ) %>%
         dplyr::group_by(Year) %>%
         dplyr::summarise(
@@ -971,7 +955,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Batting output and data compiling
+  # Batting output and data compiling ----------------------------------------------
   batter_filter <- reactive({
     req(input$batter)
     batters %>%
@@ -1115,7 +1099,8 @@ server <- function(input, output, session) {
       labs(
         color = "Hit Result",
         title = glue(
-          "{input$batter} Spray Chart <br><sub>{input$hit_dates[1]} to {input$hit_dates[2]}<sub>"
+          "{input$batter} Spray Chart <br><sub>{input$hit_dates[1]} to
+          {input$hit_dates[2]}<sub>"
         )
       ) +
       theme_void() +
@@ -1130,7 +1115,9 @@ server <- function(input, output, session) {
     validate(
       need(
         nrow(hit_data()) != 0,
-        "Sorry! The batter that you have selected did not hit any balls in play of the given specifications in this date range, according to our data. Please adjust your filters or select a different batter or date range."
+        "Sorry! The batter that you have selected did not hit any balls in play of
+        the given specifications in this date range, according to our data.
+        Please adjust your filters or select a different batter or date range."
       )
     )
     ggplotly(static_spray_chart(),
@@ -1215,7 +1202,8 @@ server <- function(input, output, session) {
           estimated_ba_using_speedangle = as.numeric(estimated_ba_using_speedangle)
         ) %>%
         mutate(
-          estimated_ba_using_speedangle = na_if(estimated_ba_using_speedangle, "null")
+          estimated_ba_using_speedangle = na_if(estimated_ba_using_speedangle,
+                                                "null")
         ) %>%
         dplyr::group_by(Year) %>%
         dplyr::summarise(
@@ -1227,7 +1215,8 @@ server <- function(input, output, session) {
           `Max Distance` = max(hit_distance_sc, na.rm = TRUE),
           `Hard Hit %` = 100 * (sum(launch_speed >= 95, na.rm = TRUE)) /
             (
-              sum(launch_speed >= 95, na.rm = TRUE) + sum(launch_speed < 95, na.rm = TRUE)
+              sum(launch_speed >= 95, na.rm = TRUE) + sum(launch_speed < 95,
+                                                          na.rm = TRUE)
             ),
           `Sweet Spot %` = 100 * (sum(
             launch_angle > 8 &
@@ -1257,8 +1246,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Metrics output and data compiling
-  
+  # Metrics output and data compiling ----------------------------------------------
   metrics_filter <- reactive({
     metrics %>%
       filter(Name == input$batterMetrics) %>%
@@ -1271,7 +1259,9 @@ server <- function(input, output, session) {
     validate(
       need(
         nrow(metrics_filter()) != 0,
-        "Sorry! The player that you have selected did not have any qualified seasons (min. 475 PA) in the selected season range, according to our data. Please select a different player or season range."
+        "Sorry! The player that you have selected did not have any qualified seasons
+        (min. 475 PA) in the selected season range, according to our data.
+        Please select a different player or season range."
       )
     )
     metrics_filter() %>%
@@ -1328,64 +1318,56 @@ server <- function(input, output, session) {
   })
   
   
-  #remove input player from data
+  # Remove input player from data --------------------------------------------------
   selectedData1 <- reactive({
     player_stats %>%
       filter(player_stats$name != input$player)
   })
   
   
-  #conduct filtering
+  # Filtering ----------------------------------------------------------------------
   selectedData2 <- reactive({
     req(input$selected_stats)
     req(input$selected_years)
     req(input$player)
     selectedData1() %>%
-      # select(c(stat_choices, name))
       filter(Year == input$selected_years)
-    #   filter(selectedData1()$position %in% input$position,
-    #          selectedData1()$foot %in% input$foot) %>%
-    #   filter(overall >= input$overall[1]) %>%
-    #   filter(overall <= input$overall[2]) %>%
-    #   filter(height >= input$height[1])  %>%
-    #   filter(height <= input$height[2])
   })
   
-  #select target player data
+  # Select target player data ------------------------------------------------------
   selectedData3 <- reactive({
     player_stats %>%
       filter(player_stats$name == input$player)
     
   })
   
-  #bind the two tables together into master table
+  # Bind the two tables together into master table ---------------------------------
   selectedData4 <- reactive({
     rbind(selectedData3(), selectedData2())
     
   })
-  #select the numericss that we are clustering on
+  # Select the numerics to cluster -------------------------------------------------
   selectedData5 <- reactive({
     selectedData4() %>%
       select(input$selected_stats)
   })
-  #conduct clustering
+  # Cluster ------------------------------------------------------------------------
   selectedData6 <- reactive({
     as.numeric(knnx.index(selectedData5(), selectedData5()[1, , drop = FALSE], k =
                             n + 1))
   })
-  #select chosen players
+  # Select chosen players ----------------------------------------------------------
   selectedData7 <- reactive({
     selectedData4()[selectedData6(), ]
   })
   
-  #select relvant stats
+  # Select relvant statistics ------------------------------------------------------
   selectedData8 <- reactive({
     selectedData7() %>%
       select(input$selected_stats)
   })
-  #
-  #
-  # # Combine the selected variables into a new data frame
+
+  # Combine the selected variables into a new dataframe ----------------------------
   output$plot1 <- renderPlotly({
     validate(
       need(
@@ -1428,8 +1410,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Payroll Output
-  
+  # Payroll Output -----------------------------------------------------------------
   trends_filter <- reactive({
     trends %>%
       mutate(Variable = fct_relevel(
@@ -1485,8 +1466,7 @@ server <- function(input, output, session) {
               ))
   })
   
-  # Offensive Leaders Output
-  
+  # Offensive Leaders Output -------------------------------------------------------
   leader_filter <- reactive({
     metrics %>%
       filter(Year == input$leader_year)
@@ -1542,5 +1522,5 @@ server <- function(input, output, session) {
   
 }
 
-# Creates app
+# Creates app ----------------------------------------------------------------------
 shinyApp(ui = ui, server = server)
